@@ -1,1 +1,1 @@
-# pn-table-schema
+table-schema
