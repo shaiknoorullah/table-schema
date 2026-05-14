@@ -1195,11 +1195,11 @@ model ThreadContextItems {
 model Conversation {
   id String @id @default(uuid())
 
-  domain             String            @unique
+  domain             String              @unique
   threads            Json[] // Array of threadIds
-  created_at         DateTime          @default(now()) @map("created_at")
-  last_updated_at    DateTime          @updatedAt @map("last_updated_at")
-  conversation_topic ConversationTopic
+  created_at         DateTime            @default(now()) @map("created_at")
+  last_updated_at    DateTime            @updatedAt @map("last_updated_at")
+  conversation_topic ConversationTopic[]
 
   @@index([domain])
   @@index([domain, conversation_topic])
@@ -1210,6 +1210,7 @@ model Conversation {
 
 enum ConversationTopic {
   INITIAL_CONTACT
+  TERMS_DISCUSSION
   POSITION_DESCRIPTION
   JOB_DESCRIPTION
   CANDIDATE_SUBMISSION

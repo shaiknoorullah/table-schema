@@ -1,8 +1,8 @@
-const moduleSchema = new Object({
-  extend: () => {},
-});
+import z from "zod";
 
-moduleSchema.extend({
+const zodSchema = z.object({});
+
+const moduleSchema = {
   table: {
     tableId: "",
     tableName: "",
@@ -273,7 +273,7 @@ moduleSchema.extend({
           },
           // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
           // expects a key-value pair
-          params: {} | zodSchema,
+          params: {}, // | zodSchema,
           // postAction is also action, the only difference is that postAction is invoked after completion (successfull or unsuccessful) of the currently running action.
           // NOTE: if you want to invoke an action after either of successful or unsuccessful completion of the currently running function you might want to use 'onSuccess' or 'onFailure' properties.
           postAction: {
@@ -296,7 +296,7 @@ moduleSchema.extend({
                 },
               ],
               isVoid: false, // if this function does not return anything, We strongly discourage the use of this since it doesn't give you any information if the run was successful or not.
-  
+
               // is this function asyncronous?
               //!NOTE: if you're defining async functions please do not wrap them in trycatch or async/await syntax or set this property as false if doing so.
               //! because setting this property to true will wrap the code in trycatch.
@@ -365,7 +365,7 @@ moduleSchema.extend({
               }
              }
              */
-            confirmation: undefined
+            confirmation: undefined,
           },
           // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
           onSuccess: {},
@@ -399,9 +399,6 @@ moduleSchema.extend({
                   customJS: undefined,
                   // rest request configuration. only required when the action type is set to rest-request.
                   restConfig: undefined,
-                  // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                  // expects a key-value pair
-                  params: undefined,
                   // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                   onSuccess: {},
                   onFailure: {},
@@ -484,9 +481,6 @@ moduleSchema.extend({
                   customJS: undefined,
                   // rest request configuration. only required when the action type is set to rest-request.
                   restConfig: undefined,
-                  // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                  // expects a key-value pair
-                  params: undefined,
                   // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                   onSuccess: {},
                   onFailure: {},
@@ -570,9 +564,6 @@ moduleSchema.extend({
                   customJS: undefined,
                   // rest request configuration. only required when the action type is set to rest-request.
                   restConfig: undefined,
-                  // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                  // expects a key-value pair
-                  params: undefined,
                   // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                   onSuccess: {},
                   onFailure: {},
@@ -655,9 +646,6 @@ moduleSchema.extend({
                   customJS: undefined,
                   // rest request configuration. only required when the action type is set to rest-request.
                   restConfig: undefined,
-                  // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                  // expects a key-value pair
-                  params: undefined,
                   // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                   onSuccess: {},
                   onFailure: {},
@@ -670,86 +658,651 @@ moduleSchema.extend({
         },
       },
       // context options like Add Tasks, Expand Record, Edit Record, Delete Record can be defined elsewhere and imported here for reusability. The params for which must be taken from the state of the active table-tab.
-      ...defaultContextOptions,
+      // ...defaultContextOptions,
     ],
   },
-});
-const Types = {
-  // date / datetime
-  DATE:"DATE",
-  DATE_TIME:"DATE_TIME",
-  // strings
-  SHORT_TEXT:"SHORT_TEXT",
-  LONG_TEXT:"LONG_TEXT",
-  URL:"URL",
-  EMAIL:"EMAIL",
-  PHONE:"PHONE",
-  // user
-  USER:"USER",
-  // file
-  ATTACHMENT:"ATTACHMENT",
-  // boolean
-  CHECKBOX:"CHECKBOX",
-  // arrays
-  MUTLI_SELECT:"MUTLI_SELECT",
-  SINGLE_SELECT:"SINGLE_SELECT", // <- sometimes can also be boolean but needs to be rendered as single select, ex: "Active/Inactive"
-  // numbers
-  NUMBER:"NUMBER",
-  PERCENT:"PERCENT",
-  CURRENCY:"CURRENCY",
-  // relations
-  ONE_TO_MANY:"ONE_TO_MANY",
-  ONE_TO_ONE:"ONE_TO_ONE",
-  // geolocation
-  GEOLOCATION:"GEOLOCATION" // need to be able to filter by lat,long, or zipcodes, with radius
+};
+
+// First, let's define our basic database column types
+type DBPrimitiveType =
+  | "VARCHAR"
+  | "TEXT"
+  | "TIMESTAMP"
+  | "BOOLEAN"
+  | "INTEGER"
+  | "DECIMAL"
+  | "POINT"
+  | "JSONB"
+  | "UUID";
+
+// Define a structure for database table relationships
+interface TableRelation {
+  table: string; // Name of the related table
+  type: "ONE" | "MANY"; // Relationship cardinality
+  via?: string; // Optional joining table for many-to-many
 }
+
+// Create a union type for all possible database field definitions
+type DBFieldDefinition =
+  | { kind: "primitive"; type: DBPrimitiveType }
+  | { kind: "relation"; relation: TableRelation };
+
+// Now let's create our field type mapping with this enhanced structure
+const FieldTypes = {
+  // Primitive fields
+  SHORT_TEXT: { kind: "primitive", type: "VARCHAR" },
+  LONG_TEXT: { kind: "primitive", type: "TEXT" },
+  DATE: { kind: "primitive", type: "TIMESTAMP" },
+  DATETIME: { kind: "primitive", type: "TIMESTAMP" },
+  URL: { kind: "primitive", type: "VARCHAR" },
+  EMAIL: { kind: "primitive", type: "VARCHAR" },
+  PHONE: { kind: "primitive", type: "VARCHAR" },
+  CHECKBOX: { kind: "primitive", type: "BOOLEAN" },
+  NUMBER: { kind: "primitive", type: "INTEGER" },
+  PERCENT: { kind: "primitive", type: "DECIMAL" },
+  CURRENCY: { kind: "primitive", type: "DECIMAL" },
+  GEOLOCATION: { kind: "primitive", type: "POINT" },
+
+  // Relational fields
+  USER: {
+    kind: "relation",
+    relation: {
+      table: "users",
+      type: "ONE",
+    },
+  },
+  ATTACHMENT: {
+    kind: "relation",
+    relation: {
+      table: "attachments",
+      type: "ONE",
+    },
+  },
+  MULTI_SELECT: {
+    kind: "relation",
+    relation: {
+      table: "select_options",
+      type: "MANY",
+      via: "field_selections",
+    },
+  },
+  SINGLE_SELECT: {
+    kind: "relation",
+    relation: {
+      table: "select_options",
+      type: "ONE",
+    },
+  },
+  ONE_TO_MANY: {
+    kind: "relation",
+    relation: {
+      table: "related_records",
+      type: "MANY",
+    },
+  },
+  ONE_TO_ONE: {
+    kind: "relation",
+    relation: {
+      table: "related_records",
+      type: "ONE",
+    },
+  },
+} as const;
+
+// Create utility types
+type FieldType = keyof typeof FieldTypes;
+type FieldDefinition = (typeof FieldTypes)[FieldType];
+
+// // Type guards for checking field types
+// function isPrimitiveField(
+//   field: FieldDefinition
+// ): field is { kind: "primitive"; type: DBPrimitiveType } {
+//   return field.kind === "primitive";
+// }
+
+// function isRelationalField(
+//   field: FieldDefinition
+// ): field is { kind: "relation"; relation: TableRelation } {
+//   return field.kind === "relation";
+// }
+
+// // Utility function to get database schema information for a field
+// function getFieldSchema(fieldType: FieldType) {
+//   const definition = FieldTypes[fieldType];
+
+//   if (isPrimitiveField(definition)) {
+//     return {
+//       type: definition.type,
+//       isRelation: false,
+//     };
+//   }
+
+//   if (isRelationalField(definition)) {
+//     const { table, type, via } = definition.relation;
+//     return {
+//       type: type === "ONE" ? "UUID" : "JSONB",
+//       isRelation: true,
+//       relationDetails: {
+//         table,
+//         type,
+//         via,
+//       },
+//     };
+//   }
+// }
+
+// Example of how to extend the system with new field types
+type FieldTypeExtension = typeof FieldTypes & {
+  RATING: { kind: "primitive"; type: "INTEGER" };
+  TAGS: {
+    kind: "relation";
+    relation: {
+      table: "tags";
+      type: "MANY";
+      via: "field_tags";
+    };
+  };
+};
 
 const filterTypes = {
-  RELATION: [Types.ONE_TO_MANY,Types.ONE_TO_ONE],
-  STRING: [Types.EMAIL, Types.LONG_TEXT, Types.SHORT_TEXT, Types.URL, Types.PHONE],
-  NUMBER: [Types.NUMBER, Types.PERCENT, Types.CURRENCY],
-  DATE: [Types.DATE],
-  DATETIME:[Types.DATE_TIME],
-  BOOLEAN: [Types.CHECKBOX, Types.SINGLE_SELECT],
-  FILE: [Types.ATTACHMENT],
-  USER:[Types.USER],
-  ARRAY:[Types.MUTLI_SELECT],
-  GEOLOCATION: [Types.GEOLOCATION]
-}
+  RELATION: [FieldTypes.ONE_TO_MANY, FieldTypes.ONE_TO_ONE],
+  STRING: [
+    FieldTypes.EMAIL,
+    FieldTypes.LONG_TEXT,
+    FieldTypes.SHORT_TEXT,
+    FieldTypes.URL,
+    FieldTypes.PHONE,
+  ],
+  NUMBER: [FieldTypes.NUMBER, FieldTypes.PERCENT, FieldTypes.CURRENCY],
+  DATE: [FieldTypes.DATE],
+  DATETIME: [FieldTypes.DATETIME],
+  BOOLEAN: [FieldTypes.CHECKBOX, FieldTypes.SINGLE_SELECT],
+  FILE: [FieldTypes.ATTACHMENT],
+  USER: [FieldTypes.USER],
+  ARRAY: [FieldTypes.MULTI_SELECT],
+  GEOLOCATION: [FieldTypes.GEOLOCATION],
+};
 
 const filterTypeToOperators = {
-  "BOOLEAN": {
+  BOOLEAN: {
     operators: {
       is: "==",
-      isNot: "!=="
+      isNot: "!==",
     },
     values: {
-      "true": "active",
-      "false": "inactive"
-    }
-  }
+      true: "active",
+      false: "inactive",
+    },
+  },
+};
+
+// First, let's define our operator types
+type ComparisonOperator =
+  | "=="
+  | "!="
+  | ">"
+  | ">="
+  | "<"
+  | "<="
+  | "LIKE"
+  | "NOT_LIKE"
+  | "IN"
+  | "NOT_IN"
+  | "IS_NULL"
+  | "IS_NOT_NULL"
+  | "CONTAINS"
+  | "NOT_CONTAINS"
+  | "BETWEEN";
+
+// Define possible filter values based on field types
+type FilterValue =
+  | string
+  | number
+  | boolean
+  | Date
+  | Array<string | number>
+  | { lat: number; lng: number };
+
+// Define the structure for operator definitions
+interface OperatorDefinition {
+  operator: ComparisonOperator;
+  label: string;
+  requiresValue: boolean;
+  multipleValues?: boolean;
+  valueType?: "text" | "number" | "date" | "boolean" | "array" | "location";
 }
 
-const a = Object.keys(filterTypeToOperators.BOOLEAN.operators)
-a.keys.name.normalize
+const stringFilterTypes = [
+  "contains",
+  "does not contain",
+  "is",
+  "is not",
+  "is empty",
+  "is not empty",
+];
 
+const relationFilterTypes = [
+  "has any of",
+  "has all of",
+  "has none of",
+  "is exactly",
+  "is",
+  "is not",
+  "contains",
+  "does not contain",
+  "is empty",
+  "is not empty",
+];
+
+const userFilterTypes = [
+  "is",
+  "is not",
+  "is any of",
+  "is none of",
+  "is empty",
+  "is not empty",
+];
+
+// Create a mapping of filter types to their available operators and field types
+const FilterTypeDefinitions = {
+  RELATION: {
+    fields: ["ONE_TO_MANY", "ONE_TO_ONE"] as const,
+    operators: [
+      { operator: "IS_NULL", label: "Is empty", requiresValue: false },
+      { operator: "IS_NOT_NULL", label: "Is not empty", requiresValue: false },
+    ] as const,
+  },
+  STRING: {
+    fields: ["EMAIL", "LONG_TEXT", "SHORT_TEXT", "URL", "PHONE"] as const,
+    operators: [
+      {
+        operator: "==",
+        label: "Equals",
+        requiresValue: true,
+        valueType: "text",
+      },
+      {
+        operator: "!=",
+        label: "Does not equal",
+        requiresValue: true,
+        valueType: "text",
+      },
+      {
+        operator: "LIKE",
+        label: "Contains",
+        requiresValue: true,
+        valueType: "text",
+      },
+      {
+        operator: "NOT_LIKE",
+        label: "Does not contain",
+        requiresValue: true,
+        valueType: "text",
+      },
+      { operator: "IS_NULL", label: "Is empty", requiresValue: false },
+      { operator: "IS_NOT_NULL", label: "Is not empty", requiresValue: false },
+    ] as const,
+  },
+  NUMBER: {
+    fields: ["NUMBER", "PERCENT", "CURRENCY"] as const,
+    operators: [
+      {
+        operator: "==",
+        label: "Equals",
+        requiresValue: true,
+        valueType: "number",
+      },
+      {
+        operator: "!=",
+        label: "Does not equal",
+        requiresValue: true,
+        valueType: "number",
+      },
+      {
+        operator: ">",
+        label: "Greater than",
+        requiresValue: true,
+        valueType: "number",
+      },
+      {
+        operator: ">=",
+        label: "Greater than or equal",
+        requiresValue: true,
+        valueType: "number",
+      },
+      {
+        operator: "<",
+        label: "Less than",
+        requiresValue: true,
+        valueType: "number",
+      },
+      {
+        operator: "<=",
+        label: "Less than or equal",
+        requiresValue: true,
+        valueType: "number",
+      },
+      {
+        operator: "BETWEEN",
+        label: "Between",
+        requiresValue: true,
+        valueType: "number",
+        multipleValues: true,
+      },
+      { operator: "IS_NULL", label: "Is empty", requiresValue: false },
+    ] as const,
+  },
+  DATETIME: {
+    fields: ["DATETIME"] as const,
+    operators: [
+      { operator: "==", label: "On", requiresValue: true, valueType: "date" },
+      {
+        operator: "!=",
+        label: "Not on",
+        requiresValue: true,
+        valueType: "date",
+      },
+      { operator: ">", label: "After", requiresValue: true, valueType: "date" },
+      {
+        operator: "<",
+        label: "Before",
+        requiresValue: true,
+        valueType: "date",
+      },
+      {
+        operator: "BETWEEN",
+        label: "Between",
+        requiresValue: true,
+        valueType: "date",
+        multipleValues: true,
+      },
+    ] as const,
+  },
+  DATE: {
+    fields: ["DATE"] as const,
+    operators: [
+      { operator: "==", label: "On", requiresValue: true, valueType: "date" },
+      {
+        operator: "!=",
+        label: "Not on",
+        requiresValue: true,
+        valueType: "date",
+      },
+      { operator: ">", label: "After", requiresValue: true, valueType: "date" },
+      {
+        operator: "<",
+        label: "Before",
+        requiresValue: true,
+        valueType: "date",
+      },
+      {
+        operator: "BETWEEN",
+        label: "Between",
+        requiresValue: true,
+        valueType: "date",
+        multipleValues: true,
+      },
+    ] as const,
+  },
+  BOOLEAN: {
+    fields: ["CHECKBOX", "SINGLE_SELECT"] as const,
+    operators: [
+      {
+        operator: "==",
+        label: "Is",
+        requiresValue: true,
+        valueType: "boolean",
+      },
+      {
+        operator: "!=",
+        label: "Is not",
+        requiresValue: true,
+        valueType: "boolean",
+      },
+    ] as const,
+    values: {
+      true: "Active",
+      false: "Inactive",
+    } as const,
+  },
+  FILE: {
+    fields: ["ATTACHMENT"] as const,
+    operators: [
+      {
+        operator: "IS_NULL",
+        label: "Has no attachments",
+        requiresValue: false,
+      },
+      {
+        operator: "IS_NOT_NULL",
+        label: "Has attachments",
+        requiresValue: false,
+      },
+    ] as const,
+  },
+  USER: {
+    fields: ["USER"] as const,
+    operators: [
+      { operator: "==", label: "Is", requiresValue: true, valueType: "text" },
+      {
+        operator: "!=",
+        label: "Is not",
+        requiresValue: true,
+        valueType: "text",
+      },
+      {
+        operator: "IN",
+        label: "Is any of",
+        requiresValue: true,
+        valueType: "array",
+      },
+      { operator: "IS_NULL", label: "Is empty", requiresValue: false },
+    ] as const,
+  },
+  ARRAY: {
+    fields: ["MULTI_SELECT"] as const,
+    operators: [
+      {
+        operator: "CONTAINS",
+        label: "Contains",
+        requiresValue: true,
+        valueType: "array",
+      },
+      {
+        operator: "NOT_CONTAINS",
+        label: "Does not contain",
+        requiresValue: true,
+        valueType: "array",
+      },
+      { operator: "IS_NULL", label: "Is empty", requiresValue: false },
+    ] as const,
+  },
+  GEOLOCATION: {
+    fields: ["GEOLOCATION"] as const,
+    operators: [
+      {
+        operator: "CONTAINS",
+        label: "Within radius",
+        requiresValue: true,
+        valueType: "location",
+      },
+      { operator: "IS_NULL", label: "Is empty", requiresValue: false },
+    ] as const,
+  },
+} as const;
+
+// Create utility types from our definitions
+type FilterType = keyof typeof FilterTypeDefinitions;
+type FieldToFilterType = {
+  [K in FieldType]: FilterType;
+};
+
+// Create a mapping from field types to filter types
+const fieldToFilterType = Object.entries(FilterTypeDefinitions).reduce(
+  (acc, [filterType, definition]) => {
+    definition.fields.forEach((field) => {
+      acc[field] = filterType as FilterType;
+    });
+    return acc;
+  },
+  {} as Record<string, FilterType>
+);
+
+// Utility function to get available operators for a field type
+function getOperatorsForField(fieldType: FieldType) {
+  const filterType = fieldToFilterType[fieldType];
+  return FilterTypeDefinitions[filterType].operators;
+}
+
+const view = {
+  viewId: "",
+  viewName: "",
+  viewDescription: "",
+  icon: "",
+  version: "",
+  policy: {},
+};
+
+const someObject = {
+  table: {
+    name: "users",
+    id: "some-uuid",
+    // views: [],
+    // constraints: {
+    //   fields: [
+    //     // based on the field type, we must have different options to further restrict them.
+    //     // for example, if the field type is Number (Int), we should be able to apply restrictions like only allow if field is < || = to the number or if the number is in between these numbers.
+    //     // one more example, if the field type is multi select, and we're restricting what the user can update the field with or insert into the field, we must be able to add conditions like only show them the multi select options 3,4 when actually there are 1,2,3,4 options.
+    //     {
+    //       name: "email",
+    //       operation: "read",
+    //       allow: true,
+    //       // if limits is not defined this field will be allowed to be read by everyone no matter what
+    //       // but if limits is defined, this field will be allowed to be read only when the following conditions are evaluated and met.
+    //       limits: {
+    //         conditions: {
+    //           custom: "custom js expression",
+    //           array: [
+    //             [
+    //               {
+    //                 name: 'allow_when_email_contains_domain_name',
+    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
+    //                 expression: modules.users.email.includes("some domain name"),
+    //                 limits: {
+    //                   requestsPerMinute: 200,
+    //                   blah_blah: 'blah_blah'
+    //                 }
+    //               },
+    //               // AND operator
+    //               {
+    //                 name: 'allow_when_email_contains_domain_name',
+    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
+    //                 expression: modules.users.email.includes("some domain name"),
+    //                 limits: {
+    //                   requestsPerMinute: 200,
+    //                   blah_blah: 'blah_blah'
+    //                 }
+    //               },
+    //             ],
+    //             // OR operator
+    //           [
+
+    //           ]]
+    //         }
+    //       }
+    //     },
+    //     // similarly other fields
+    //   ],
+    //   // the records are only allowed after the fields are filtered
+    //   records: [
+    //     {
+    //       name: "email",
+    //       operation: "read",
+    //       allow: true,
+    //       // if limits is not defined this field will be allowed to be read by everyone no matter what
+    //       // but if limits is defined, this field will be allowed to be read only when the following conditions are evaluated and met.
+    //       limits: {
+    //         conditions: {
+    //           custom: "custom js expression",
+    //           array: [
+    //             [
+    //               {
+    //                 name: 'allow_when_email_contains_domain_name',
+    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
+    //                 expression: modules.users.email.includes("some domain name"),
+    //                 limits: {
+    //                   requestsPerMinute: 200,
+    //                   blah_blah: 'blah_blah'
+    //                 }
+    //               },
+    //               // AND operator
+    //               {
+    //                 name: 'allow_when_email_contains_domain_name',
+    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
+    //                 expression: modules.users.email.includes("some domain name"),
+    //                 limits: {
+    //                   requestsPerMinute: 200,
+    //                   blah_blah: 'blah_blah'
+    //                 }
+    //               },
+    //             ],
+    //             // OR operator
+    //           [
+    //           ]
+    //           ]
+    //         }
+    //       }
+    //     }
+    //   ]
+    // },
+    // ... additional constraints
+  },
+  // ... additional configurations and controls
+};
 
 const table = {
   tableId: "",
-  tableName: "",
-  tableDescription: "",
+  tableName: "Positions",
+  tableDescription: "view all positions in the organization",
   icon: "",
-  version: "",
-  fields: {
-    "sumbissions": {
+  version: "1.0.0",
+  fields: [
+    {
+      fieldId: "uuid",
       displayName: "Submissions To Clients",
-      type: Types.ONE_TO_ONE,
+      type: FieldTypes.ONE_TO_MANY,
+      dbFieldType: FieldTypes.ONE_TO_MANY["kind"],
+      isRelational: true,
+      relation: FieldTypes.ONE_TO_MANY["relation"],
+      formatting: {
+        // structure to store the formatting (appearance) and behaviour of the fields
+        // ex: url field needs to be able to be opened up and hence it has to be a href (blue color and underlined on hover)
+        // email fields when clicked should open up a mailto: and phone fields need to open up the caller
+        // attachment fields need to show the thumbnail which when clicked will open up the document, also these fields must have an icon to add more documents to it. when hovered, it should also have an on hover preview that shows the summary, file type, file name, and thumbnail.
+        // use field needs to show user's avatar and their full name together in a tag.
+        // in single select fields, each option can be colored differently
+        // in relational fields (reference) one-to-one or one-to-many, each record referenced should be presented as a tag and the tag should have the ability to be conditionally colored based on conditions
+        // and much more such cases
+      },
+      fieldEditOptions: {},
+      filterOptions: {
+        // defined the complete filtration system for this field for frontend use.
+      },
+      sortOptions: {
+        // define sort options for this field, including special cases like partial filtering with sorting.
+        // example:
+        // in location fields, we take zipcodes or city, or area. an example use case in submissions table could be: filter all submissions in which candidate is inside 30 mile radius of the position location
+        // and sort in descending order. this means that the submission in which the candidate is most closest to the position location would come first and the
+        // candidates that are outside of that radius would also be included but will be at the end of the table according to their distance from position
+      },
       icon: "",
-      filterType: "RELATION"
-    }
-  },
+      fieldHistory: [], // history activity on this field's schema
+    },
+  ],
   defaultViews: [],
+  userSpecific: [],
   history: [],
+  // each table in the database has a couple of unique context menu options. To tackle this dynamically and render everything and perform all actions on the frontend dynamically. this is my Idea.
   contextOptions: [
     {
       name: "mark_as_inactive", // name of the option has to be unique
@@ -1012,7 +1565,7 @@ const table = {
         },
         // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
         // expects a key-value pair
-        params: {} | zodSchema,
+        params: {},
         // postAction is also action, the only difference is that postAction is invoked after completion (successfull or unsuccessful) of the currently running action.
         // NOTE: if you want to invoke an action after either of successful or unsuccessful completion of the currently running function you might want to use 'onSuccess' or 'onFailure' properties.
         postAction: {
@@ -1104,7 +1657,7 @@ const table = {
             }
            }
            */
-          confirmation: undefined
+          confirmation: undefined,
         },
         // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
         onSuccess: {},
@@ -1138,9 +1691,6 @@ const table = {
                 customJS: undefined,
                 // rest request configuration. only required when the action type is set to rest-request.
                 restConfig: undefined,
-                // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                // expects a key-value pair
-                params: undefined,
                 // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                 onSuccess: {},
                 onFailure: {},
@@ -1223,9 +1773,6 @@ const table = {
                 customJS: undefined,
                 // rest request configuration. only required when the action type is set to rest-request.
                 restConfig: undefined,
-                // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                // expects a key-value pair
-                params: undefined,
                 // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                 onSuccess: {},
                 onFailure: {},
@@ -1309,9 +1856,6 @@ const table = {
                 customJS: undefined,
                 // rest request configuration. only required when the action type is set to rest-request.
                 restConfig: undefined,
-                // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                // expects a key-value pair
-                params: undefined,
                 // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                 onSuccess: {},
                 onFailure: {},
@@ -1394,9 +1938,6 @@ const table = {
                 customJS: undefined,
                 // rest request configuration. only required when the action type is set to rest-request.
                 restConfig: undefined,
-                // params object is required when the type is either: "function|rest-request|custom-action" and marked as required parameter in the function signature
-                // expects a key-value pair
-                params: undefined,
                 // the below fields are required when the type is NOT 'custom-action' for this action. because `onSuccess` and `onFailure` are both defined in customJS object.
                 onSuccess: {},
                 onFailure: {},
@@ -1411,122 +1952,14 @@ const table = {
     // context options like Add Tasks, Expand Record, Edit Record, Delete Record can be defined elsewhere and imported here for reusability. The params for which must be taken from the state of the active table-tab.
     // ...defaultContextOptions,
   ],
-}
+};
 
 // action_uuid_1 refers to this following action
 /**
- action: close active modal
+action: close active modal
 */
 
 // action_uuid_2 refers to this following action
 /**
- action: invoke function updateStatus({status:"inactive"})
+action: invoke function updateStatus({status:"inactive"})
 */
-
-const view = {
-viewId:"",
-viewName:"",
-viewDescription: "",
-icon: "",
-version: "",
-policy: {
-  "Positions": table.fields.sumbissions.displayName
-}
-}
-
-{
-  table: {
-    name: "users"
-    id: "some-uuid",
-    // views: [],
-    // constraints: {
-    //   fields: [
-    //     // based on the field type, we must have different options to further restrict them.
-    //     // for example, if the field type is Number (Int), we should be able to apply restrictions like only allow if field is < || = to the number or if the number is in between these numbers.
-    //     // one more example, if the field type is multi select, and we're restricting what the user can update the field with or insert into the field, we must be able to add conditions like only show them the multi select options 3,4 when actually there are 1,2,3,4 options.
-    //     {
-    //       name: "email",
-    //       operation: "read",
-    //       allow: true,
-    //       // if limits is not defined this field will be allowed to be read by everyone no matter what
-    //       // but if limits is defined, this field will be allowed to be read only when the following conditions are evaluated and met.
-    //       limits: {
-    //         conditions: {
-    //           custom: "custom js expression",
-    //           array: [
-    //             [
-    //               {
-    //                 name: 'allow_when_email_contains_domain_name',
-    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
-    //                 expression: modules.users.email.includes("some domain name"),
-    //                 limits: {
-    //                   requestsPerMinute: 200,
-    //                   blah_blah: 'blah_blah'
-    //                 }
-    //               },
-    //               // AND operator
-    //               {
-    //                 name: 'allow_when_email_contains_domain_name',
-    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
-    //                 expression: modules.users.email.includes("some domain name"),
-    //                 limits: {
-    //                   requestsPerMinute: 200,
-    //                   blah_blah: 'blah_blah'
-    //                 }
-    //               },
-    //             ],
-    //             // OR operator
-    //           [
-                
-    //           ]]
-    //         }
-    //       }
-    //     },
-    //     // similarly other fields
-    //   ],
-    //   // the records are only allowed after the fields are filtered
-    //   records: [
-    //     {
-    //       name: "email",
-    //       operation: "read",
-    //       allow: true,
-    //       // if limits is not defined this field will be allowed to be read by everyone no matter what
-    //       // but if limits is defined, this field will be allowed to be read only when the following conditions are evaluated and met.
-    //       limits: {
-    //         conditions: {
-    //           custom: "custom js expression",
-    //           array: [
-    //             [
-    //               {
-    //                 name: 'allow_when_email_contains_domain_name',
-    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
-    //                 expression: modules.users.email.includes("some domain name"),
-    //                 limits: {
-    //                   requestsPerMinute: 200,
-    //                   blah_blah: 'blah_blah'
-    //                 }
-    //               },
-    //               // AND operator
-    //               {
-    //                 name: 'allow_when_email_contains_domain_name',
-    //                 description: 'this condition will only allow users that have a certain domain name in their emails perform read on the email field of users table',
-    //                 expression: modules.users.email.includes("some domain name"),
-    //                 limits: {
-    //                   requestsPerMinute: 200,
-    //                   blah_blah: 'blah_blah'
-    //                 }
-    //               },
-    //             ],
-    //             // OR operator
-    //           [
-    //           ]
-    //           ]
-    //         }
-    //       }
-    //     }
-    //   ]
-    // },
-    // ... additional constraints
-  }
-  // ... additional configurations and controls
-}
